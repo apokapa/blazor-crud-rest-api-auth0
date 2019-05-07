@@ -1,0 +1,164 @@
+﻿@page "/todo"
+
+@using System.Net.Http
+
+@inject AuthenticationService _authService
+@inject HttpClient _httpClient
+
+
+<h1>My Todos</h1>
+
+<p>This component demonstrates fetching data from the server.</p>
+
+<table width="100%" style="background:#05163D;color:honeydew">
+    <tr>
+        <td width="20">&nbsp;</td>
+        <td>
+            <h2> Add/Update Todo</h2>
+        </td>
+        <td>&nbsp;</td>
+        <td align="right">
+            <button class="btn btn-info" onclick="@ResetTodo">Reset edit form</button>
+        </td>
+        <td width="10">&nbsp;</td>
+    </tr>
+    <tr>
+        <td colspan="2"></td>
+    </tr>
+</table>
+
+<form>
+    <table class="form-group">
+        <tr>
+            <td>
+                <label for="Name" class="control-label">Id</label>
+            </td>
+            <td>
+                <input type="text" class="form-control" bind="@editedTodoId" readonly />
+            </td>
+            <td>
+                <label for="Name" class="control-label">Name</label>
+            </td>
+            <td>
+                <input type="text" class="form-control" bind="@todoUpsert.Name" />
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <button type="button" class="btn btn-success" onclick="@(async () => await AddOrUpdateTodo())" style="width:220px;">Add or Update</button>
+            </td>
+        </tr>
+    </table>
+</form>
+
+
+<table width="100%" style="background:#0A2464;color:honeydew">
+    <tr>
+        <td width="20">&nbsp;</td>
+        <td>
+            <h2>Todo Details</h2>
+        </td>
+
+    </tr>
+    <tr>
+        <td colspan="2"></td>
+    </tr>
+</table>
+
+@if (todos == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Name</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var todo in todos)
+            {
+                <tr>
+                    <td>@todo.Id.ToString()</td>
+                    <td>@todo.Name</td>
+                    <td><button class="btn btn-primary" onclick="@(async () => await EditTodo(@todo.Id))" style="width:110px;">Edit</button></td>
+                    <td><button class="btn btn-danger" onclick="@(async () => await DeleteTodo(@todo.Id))">Delete</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@functions {
+    TodoViewModel[] todos;
+    TodoUpsertModel todoUpsert = new TodoUpsertModel();
+    string editedTodoId = String.Empty;
+    string apiBaseUri = "https://xampletodoapi.azurewebsites.net/api/ToDo/";
+
+    protected override async Task OnInitAsync()
+    {
+
+        // Enforcing user log-in for this page
+        if (_authService.SessionState != SessionStates.Active)
+        {
+            _authService.Authorize();
+        }
+        else
+        {
+            todos = await _httpClient.GetJsonAsync<TodoViewModel[]>(apiBaseUri);
+        }
+
+    }
+
+    protected async Task AddOrUpdateTodo()
+    {
+
+        if (editedTodoId == String.Empty)
+        {
+            await _httpClient.SendJsonAsync(HttpMethod.Post, apiBaseUri, todoUpsert);
+        }
+        else
+        {
+            await _httpClient.SendJsonAsync(HttpMethod.Put, apiBaseUri + editedTodoId.ToString(), todoUpsert);
+        }
+
+        todos = await _httpClient.GetJsonAsync<TodoViewModel[]>(apiBaseUri);
+        editedTodoId = String.Empty;
+        todoUpsert = new TodoUpsertModel();
+    }
+
+    protected async Task DeleteTodo(Guid todoId)
+    {
+        await _httpClient.DeleteAsync(apiBaseUri + todoId.ToString());
+        todos = await _httpClient.GetJsonAsync<TodoViewModel[]>(apiBaseUri);
+    }
+
+    protected async Task EditTodo(Guid todoId)
+    {
+        editedTodoId = todoId.ToString();
+        todoUpsert = await _httpClient.GetJsonAsync<TodoUpsertModel>(apiBaseUri + todoId.ToString());
+    }
+
+    void ResetTodo()
+    {
+        todoUpsert = new TodoUpsertModel();
+        editedTodoId = String.Empty;
+    }
+
+    class TodoViewModel
+    {
+        public Guid Id { get; set; }
+
+        public string Name { get; set; }
+    }
+
+    class TodoUpsertModel
+    {
+        public Guid Id { get; set; }
+
+        public string Name { get; set; }
+    }
+}
